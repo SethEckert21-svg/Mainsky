@@ -1,0 +1,298 @@
+# Instincts generated from https://github.com/SethEckert21-svg/Mainsky
+# Generated: 2026-06-05T20:45:42.418Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: Mainsky-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/SethEckert21-svg/Mainsky
+---
+
+# Mainsky Commit Length
+
+## Action
+
+Keep commit messages concise (~39 characters)
+
+## Evidence
+
+- Average commit message length: 39 chars
+- Based on 1 commits
+
+---
+id: Mainsky-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SethEckert21-svg/Mainsky
+---
+
+# Mainsky Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: Mainsky-import-alias
+trigger: "when importing modules"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SethEckert21-svg/Mainsky
+---
+
+# Mainsky Import Alias
+
+## Action
+
+Use path aliases (@/, ~/) instead of relative imports
+
+## Evidence
+
+- Import analysis shows alias pattern
+- Example: import { x } from '@/lib/x'
+
+---
+id: Mainsky-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SethEckert21-svg/Mainsky
+---
+
+# Mainsky Export Style
+
+## Action
+
+Prefer mixed exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: mixed
+
+---
+id: Mainsky-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/SethEckert21-svg/Mainsky
+---
+
+# Mainsky Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: app, components, hooks, utils
+
+---
+id: Mainsky-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/SethEckert21-svg/Mainsky
+---
+
+# Mainsky Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: mainsky-instinct-file-naming-camelCase
+trigger: "When creating a new file in the codebase"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct File Naming CamelCase
+
+## Action
+
+Name the file using camelCase
+
+## Evidence
+
+- Pattern in namingConventions.files
+
+---
+id: mainsky-instinct-function-naming-camelCase
+trigger: "When naming a function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct Function Naming CamelCase
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in namingConventions.functions
+
+---
+id: mainsky-instinct-class-naming-pascalCase
+trigger: "When defining a class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct Class Naming PascalCase
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in namingConventions.classes
+
+---
+id: mainsky-instinct-constant-naming-screamingSnakeCase
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct Constant Naming ScreamingSnakeCase
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in namingConventions.constants
+
+---
+id: mainsky-instinct-import-alias
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct Import Alias
+
+## Action
+
+Use import aliases instead of relative paths
+
+## Evidence
+
+- Pattern in importStyle: alias
+
+---
+id: mainsky-instinct-export-mixed
+trigger: "When exporting modules or functions"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct Export Mixed
+
+## Action
+
+Use both named and default exports as appropriate
+
+## Evidence
+
+- Pattern in exportStyle: mixed
+
+---
+id: mainsky-instinct-test-location-separate
+trigger: "When adding new tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct Test Location Separate
+
+## Action
+
+Place tests in a separate directory from source code
+
+## Evidence
+
+- Pattern in testLocation: separate
+
+---
+id: mainsky-instinct-commit-freeform
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct Commit Freeform
+
+## Action
+
+Use a freeform commit message without a prefix
+
+## Evidence
+
+- Pattern in commits.type: freeform
+- Example: 'Add file search with stop/abort support'
+
+---
+id: mainsky-instinct-commit-length-short
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: SethEckert21-svg/Mainsky
+---
+
+# Mainsky Instinct Commit Length Short
+
+## Action
+
+Keep the commit message concise, around 39 characters on average
+
+## Evidence
+
+- Pattern in commits.averageLength: 39
+
