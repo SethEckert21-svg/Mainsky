@@ -1,0 +1,80 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 2rem;
+  font-family: system-ui, sans-serif;
+}
+
+.file-search__form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.file-search__input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.file-search__btn {
+  padding: 0.5rem 1.25rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.file-search__btn--search {
+  background: #0070f3;
+  color: #fff;
+}
+
+.file-search__btn--search:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-search__btn--stop {
+  background: #e53e3e;
+  color: #fff;
+}
+
+.file-search__status {
+  color: #555;
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.file-search__status--stopped {
+  color: #b7791f;
+}
+
+.file-search__status--error {
+  color: #c53030;
+}
+
+.file-search__results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.file-search__result {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.file-search__result-name {
+  font-weight: 600;
+}
+
+.file-search__result-path {
+  font-size: 0.8rem;
+  color: #666;
+}
