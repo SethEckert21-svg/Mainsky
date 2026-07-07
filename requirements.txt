@@ -1,0 +1,7 @@
+# Double Pivot Encryption
+#
+# The confidentiality layer prefers AES-256-GCM from the `cryptography`
+# package. If it is not installed, the module automatically falls back to a
+# stdlib-only HMAC-SHA256-CTR construction (unreviewed; for the fallback to be
+# avoided, keep this dependency installed).
+cryptography>=42.0.0
