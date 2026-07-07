@@ -27,26 +27,34 @@ independent secret:
     pivot2_key = KDF(master_key, context="interpretive")   # drives the auth tag
     cipher_key = KDF(master_key, context="confidentiality")# drives the keystream
 
-CONFIDENTIALITY CONSTRUCTION
-----------------------------
-The Python standard library ships no block cipher (no AES), so to keep this
-dependency-free the confidentiality layer is a **hand-rolled HMAC-SHA256
-counter-mode (CTR) stream cipher** combined with **encrypt-then-MAC**:
+CONFIDENTIALITY CONSTRUCTION (pluggable backend)
+------------------------------------------------
+The confidentiality layer prefers a **vetted AEAD** and falls back to a
+stdlib-only construction only when the library is unavailable:
 
-    keystream_block(i) = HMAC-SHA256(cipher_key, nonce || counter_i)
-    ciphertext         = plaintext XOR keystream
-    tag                = HMAC-SHA256(pivot2_key, nonce || ciphertext)
-    output             = nonce || tag || ciphertext
+  * Backend 0x01 -- AES-256-GCM via the ``cryptography`` package (preferred).
+    This is real, reviewed authenticated encryption. Used automatically when
+    ``cryptography`` imports successfully.
 
-A fresh random 16-byte nonce is used per encryption, so encrypting the same
-plaintext twice yields different ciphertexts. Decryption recomputes and
-verifies the tag (constant-time) *before* decrypting, then reverses the pivots.
+  * Backend 0x02 -- stdlib fallback: a hand-rolled HMAC-SHA256 counter-mode
+    (CTR) keystream cipher with **encrypt-then-MAC**::
 
-This construction has the correct *shape* of a real AEAD scheme (unique nonce,
-CTR keystream, encrypt-then-MAC, constant-time tag check). It is still a
-PROTOTYPE: HMAC-CTR is far slower than AES and has not been reviewed. For real
-systems use a vetted library (e.g. ``cryptography``'s AES-GCM or ChaCha20-
-Poly1305). Do not use this to protect anything that actually matters.
+        keystream_block(i) = HMAC-SHA256(cipher_key, nonce || counter_i)
+        ciphertext         = plaintext XOR keystream
+        tag                = HMAC-SHA256(pivot2_key, nonce || ciphertext)
+
+Every ciphertext begins with a one-byte backend id so decryption always knows
+which construction to reverse; decrypting with the wrong backend/key/data is
+rejected by the authentication check.
+
+Both backends use a fresh random nonce per encryption and verify authenticity
+(constant-time) *before* decrypting, then reverse the pivots.
+
+The AES-GCM backend is suitable for real use with proper key management. The
+stdlib fallback has the correct *shape* of an AEAD (unique nonce, CTR
+keystream, encrypt-then-MAC, constant-time check) but is unreviewed and slow;
+it exists only so the module still functions without third-party packages.
+Prefer running with ``cryptography`` installed.
 """
 
 from __future__ import annotations
@@ -58,6 +66,35 @@ import os
 import struct
 import zlib
 
+def _try_import_aesgcm():
+    """Import AES-GCM, silencing native-backend noise on failure.
+
+    A broken native backend can print a Rust panic backtrace straight to the
+    real stderr file descriptor and raise a non-``Exception`` (e.g. a
+    ``PanicException``). We temporarily redirect fd 2 to /dev/null and catch
+    ``BaseException`` so a broken install degrades quietly to the fallback.
+    """
+    import os as _os
+    import sys
+
+    sys.stderr.flush()
+    saved_fd = _os.dup(2)
+    devnull = _os.open(_os.devnull, _os.O_WRONLY)
+    try:
+        _os.dup2(devnull, 2)
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        return AESGCM
+    except BaseException:  # noqa: BLE001 - intentionally broad; see docstring
+        return None
+    finally:
+        _os.dup2(saved_fd, 2)
+        _os.close(saved_fd)
+        _os.close(devnull)
+
+
+AESGCM = _try_import_aesgcm()
+_HAVE_AESGCM = AESGCM is not None
+
 # ---------------------------------------------------------------------------
 # Key derivation
 # ---------------------------------------------------------------------------
@@ -65,6 +102,14 @@ import zlib
 _KDF_ITERATIONS = 100_000
 _KDF_SALT = b"double-pivot-encryption/v1"
 
+# Backend identifiers (first byte of every ciphertext).
+_BACKEND_AESGCM = 0x01
+_BACKEND_HMAC_CTR = 0x02
+
+# AES-GCM parameters.
+_GCM_NONCE_LEN = 12
+
+# stdlib HMAC-CTR fallback parameters.
 _NONCE_LEN = 16
 _TAG_LEN = 32  # HMAC-SHA256 digest size
 
@@ -86,8 +131,13 @@ def kdf(master_key: bytes, context: str, length: int = 32) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Confidentiality layer: HMAC-SHA256 CTR stream cipher + encrypt-then-MAC
+# Confidentiality layer: AES-256-GCM (preferred) or stdlib HMAC-CTR fallback
 # ---------------------------------------------------------------------------
+
+
+def active_backend() -> str:
+    """Return the name of the confidentiality backend that will be used."""
+    return "AES-256-GCM" if _HAVE_AESGCM else "HMAC-SHA256-CTR (stdlib fallback)"
 
 
 def _keystream(cipher_key: bytes, nonce: bytes, length: int) -> bytes:
@@ -110,27 +160,60 @@ def _xor(data: bytes, keystream: bytes) -> bytes:
     return bytes(a ^ b for a, b in zip(data, keystream))
 
 
-def _encrypt_then_mac(plaintext: bytes, cipher_key: bytes, mac_key: bytes) -> bytes:
-    """Encrypt ``plaintext`` (CTR) then authenticate. Returns nonce||tag||ct."""
+def _seal(plaintext: bytes, cipher_key: bytes, mac_key: bytes) -> bytes:
+    """Encrypt + authenticate ``plaintext``.
+
+    Uses AES-256-GCM when available, otherwise the stdlib HMAC-CTR fallback.
+    The returned blob is ``backend_id(1) || backend-specific bytes``.
+    """
+    if _HAVE_AESGCM:
+        nonce = os.urandom(_GCM_NONCE_LEN)
+        # AES-GCM authenticates internally; bind mac_key in as associated data
+        # so the "interpretive" key still participates in authentication.
+        ciphertext = AESGCM(cipher_key).encrypt(nonce, plaintext, mac_key)
+        return bytes([_BACKEND_AESGCM]) + nonce + ciphertext
+
     nonce = os.urandom(_NONCE_LEN)
     ciphertext = _xor(plaintext, _keystream(cipher_key, nonce, len(plaintext)))
     tag = hmac.new(mac_key, nonce + ciphertext, hashlib.sha256).digest()
-    return nonce + tag + ciphertext
+    return bytes([_BACKEND_HMAC_CTR]) + nonce + tag + ciphertext
 
 
-def _verify_then_decrypt(blob: bytes, cipher_key: bytes, mac_key: bytes) -> bytes:
-    """Verify the tag (constant-time) and decrypt. Raises ValueError on failure."""
-    if len(blob) < _NONCE_LEN + _TAG_LEN:
-        raise ValueError("Ciphertext too short to contain nonce and tag")
-    nonce = blob[:_NONCE_LEN]
-    tag = blob[_NONCE_LEN:_NONCE_LEN + _TAG_LEN]
-    ciphertext = blob[_NONCE_LEN + _TAG_LEN:]
+def _open(blob: bytes, cipher_key: bytes, mac_key: bytes) -> bytes:
+    """Verify + decrypt a blob produced by :func:`_seal`.
 
-    expected_tag = hmac.new(mac_key, nonce + ciphertext, hashlib.sha256).digest()
-    if not hmac.compare_digest(tag, expected_tag):
-        raise ValueError("Authentication failed: wrong key or tampered ciphertext")
+    Dispatches on the leading backend id. Raises ``ValueError`` on wrong key,
+    tampering, an unknown backend, or truncated input.
+    """
+    if not blob:
+        raise ValueError("Empty ciphertext")
+    backend, body = blob[0], blob[1:]
 
-    return _xor(ciphertext, _keystream(cipher_key, nonce, len(ciphertext)))
+    if backend == _BACKEND_AESGCM:
+        if not _HAVE_AESGCM:
+            raise ValueError("Ciphertext requires AES-GCM but 'cryptography' "
+                             "is unavailable in this environment")
+        if len(body) < _GCM_NONCE_LEN:
+            raise ValueError("Ciphertext too short to contain a nonce")
+        nonce, ciphertext = body[:_GCM_NONCE_LEN], body[_GCM_NONCE_LEN:]
+        try:
+            return AESGCM(cipher_key).decrypt(nonce, ciphertext, mac_key)
+        except Exception as exc:  # InvalidTag and friends
+            raise ValueError("Authentication failed: wrong key or tampered "
+                             "ciphertext") from exc
+
+    if backend == _BACKEND_HMAC_CTR:
+        if len(body) < _NONCE_LEN + _TAG_LEN:
+            raise ValueError("Ciphertext too short to contain nonce and tag")
+        nonce = body[:_NONCE_LEN]
+        tag = body[_NONCE_LEN:_NONCE_LEN + _TAG_LEN]
+        ciphertext = body[_NONCE_LEN + _TAG_LEN:]
+        expected_tag = hmac.new(mac_key, nonce + ciphertext, hashlib.sha256).digest()
+        if not hmac.compare_digest(tag, expected_tag):
+            raise ValueError("Authentication failed: wrong key or tampered ciphertext")
+        return _xor(ciphertext, _keystream(cipher_key, nonce, len(ciphertext)))
+
+    raise ValueError(f"Unknown confidentiality backend id: {backend}")
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +327,7 @@ def double_pivot_encrypt(plaintext_obj: dict, master_key: bytes) -> bytes:
     cipher_key = kdf(master_key, context="confidentiality")
 
     structural_blob = pivot1_structural_transform(plaintext_obj, pivot1_key)
-    return _encrypt_then_mac(structural_blob, cipher_key, pivot2_key)
+    return _seal(structural_blob, cipher_key, pivot2_key)
 
 
 def double_pivot_decrypt(ciphertext: bytes, master_key: bytes) -> dict:
@@ -257,7 +340,7 @@ def double_pivot_decrypt(ciphertext: bytes, master_key: bytes) -> dict:
     pivot2_key = kdf(master_key, context="interpretive")
     cipher_key = kdf(master_key, context="confidentiality")
 
-    structural_blob = _verify_then_decrypt(ciphertext, cipher_key, pivot2_key)
+    structural_blob = _open(ciphertext, cipher_key, pivot2_key)
     return pivot2_interpretive_transform(structural_blob)
 
 
@@ -273,6 +356,9 @@ if __name__ == "__main__":
         "timestamp": "2026-07-07T07:30:00",
     }
     master_key = b"my-secret-master-key"
+
+    print(f"Confidentiality backend: {active_backend()}")
+    print()
 
     ciphertext = double_pivot_encrypt(plaintext, master_key)
     decrypted = double_pivot_decrypt(ciphertext, master_key)
